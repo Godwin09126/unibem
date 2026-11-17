@@ -1,10 +1,11 @@
 
 // ======================================
 // THE TEAL SPOTLIGHT
-// CONNECTED TO NODE.JS BACKEND
+// CONNECTED TO NODE.JS + SUPABASE
 // ======================================
 
 // Get articles from backend
+// SUPABASE CONNECTION REMAINS THROUGH NODE.JS
 async function getArticles() {
     const response = await fetch("/api/articles");
 
@@ -78,6 +79,7 @@ function formatWeek(start) {
     return `Week of ${first} – ${last}`;
 }
 
+
 // ======================================
 // DISPLAY HOMEPAGE ARTICLES
 // ======================================
@@ -90,7 +92,7 @@ async function displayArticles() {
     try {
         const articles = await getArticles();
 
-        if (articles.length === 0) {
+        if (!articles.length) {
             container.innerHTML = `
                 <div class="empty-news">
                     <h2>No stories published yet.</h2>
@@ -119,10 +121,75 @@ async function displayArticles() {
 
         const sortedWeeks = Object.keys(weeks).sort().reverse();
 
-        container.innerHTML = sortedWeeks.map(key => {
+        // WEEKLY EDITION PRINT CENTRE
+        const printCentre = `
+            <section class="print-centre">
+
+                <p class="eyebrow">THE TEAL SPOTLIGHT</p>
+
+                <h2>Weekly Edition Print Centre</h2>
+
+                <p>Select the weekly editions you want to print.</p>
+
+                <div class="print-centre-actions">
+
+                    <button
+                        type="button"
+                        onclick="toggleAllWeeks()"
+                        class="select-weeks-button"
+                        id="select-all-weeks">
+                        SELECT ALL
+                    </button>
+
+                    <button
+                        type="button"
+                        onclick="printSelectedWeeks()"
+                        class="print-selected-button">
+                        PRINT SELECTED EDITIONS
+                    </button>
+
+                </div>
+
+                <p class="selected-week-count"
+                   id="selected-week-count">
+                    0 editions selected
+                </p>
+
+                <div class="week-selection-list">
+
+                    ${sortedWeeks.map(key => `
+                        <label class="week-selection-item">
+
+                            <input
+                                type="checkbox"
+                                class="week-checkbox"
+                                value="${key}"
+                                onchange="updateSelectedWeekCount()"
+                            >
+
+                            <span>
+                                ${formatWeek(weeks[key].start)}
+                            </span>
+
+                            <small>
+                                ${weeks[key].articles.length} stories
+                            </small>
+
+                        </label>
+                    `).join("")}
+
+                </div>
+
+            </section>
+        `;
+
+        // CREATE WEEKLY NEWS SECTIONS
+        const weeklySections = sortedWeeks.map(key => {
+
             const week = weeks[key];
 
             const cards = week.articles.map(article => `
+
                 <article class="news-card">
 
                     ${article.image ? `
@@ -143,13 +210,16 @@ async function displayArticles() {
                         <h3>${escapeHTML(article.title)}</h3>
 
                         <div class="news-meta">
+
                             <span class="by-line">
                                 By ${escapeHTML(article.author)}
                             </span>
 
                             <span class="publish-date">
-                                Published: ${escapeHTML(formatDateTime(getArticleDate(article)))}
+                                Published:
+                                ${escapeHTML(formatDateTime(getArticleDate(article)))}
                             </span>
+
                         </div>
 
                         <div class="news-description">
@@ -159,31 +229,50 @@ async function displayArticles() {
                             </p>
                         </div>
 
-                        <a class="read-more"
-                           href="#"
-                           onclick="readArticle('${escapeHTML(article.id)}'); return false;">
-                           READ FULL STORY →
+                        <div class="print-full-content">
+                            ${escapeHTML(article.content || "").replace(/\n/g, "<br>")}
+                        </div>
+
+                        <a
+                            class="read-more"
+                            href="#"
+                            onclick="readArticle('${escapeHTML(article.id)}'); return false;">
+                            READ FULL STORY →
                         </a>
 
                     </div>
+
                 </article>
+
             `).join("");
 
             return `
-                <section class="week-section" id="week-${key}">
+
+                <section
+                    class="week-section"
+                    id="week-${key}"
+                    data-week-key="${key}"
+                >
 
                     <div class="week-heading">
+
                         <div>
                             <p class="eyebrow">WEEKLY EDITION</p>
+
                             <h2>${formatWeek(week.start)}</h2>
-                            <p>${week.articles.length} published stories</p>
+
+                            <p>
+                                ${week.articles.length} published stories
+                            </p>
                         </div>
 
                         <button
+                            type="button"
                             class="print-week-button"
                             onclick="printWeek('${key}')">
                             PRINT THIS WEEK
                         </button>
+
                     </div>
 
                     <div class="news-grid">
@@ -191,23 +280,167 @@ async function displayArticles() {
                     </div>
 
                 </section>
+
             `;
+
         }).join("");
 
+        container.innerHTML = printCentre + weeklySections;
+
     } catch (error) {
+
         console.error(error);
+
         container.innerHTML = `
             <p>Unable to load news. Please refresh the page.</p>
         `;
     }
 }
 
+
+// ======================================
+// WEEKLY EDITION SELECTION
+// ======================================
+
+// Update selected edition count
+function updateSelectedWeekCount() {
+
+    const checkboxes = document.querySelectorAll(
+        ".week-checkbox"
+    );
+
+    const selected = document.querySelectorAll(
+        ".week-checkbox:checked"
+    );
+
+    const count = document.getElementById(
+        "selected-week-count"
+    );
+
+    const selectButton = document.getElementById(
+        "select-all-weeks"
+    );
+
+    if (count) {
+        count.textContent =
+            `${selected.length} of ${checkboxes.length} editions selected`;
+    }
+
+    if (selectButton) {
+        selectButton.textContent =
+            selected.length === checkboxes.length
+                ? "DESELECT ALL"
+                : "SELECT ALL";
+    }
+}
+
+
+// ======================================
+// SELECT ALL / DESELECT ALL
+// ======================================
+
+function toggleAllWeeks() {
+
+    const checkboxes = document.querySelectorAll(
+        ".week-checkbox"
+    );
+
+    const selected = document.querySelectorAll(
+        ".week-checkbox:checked"
+    );
+
+    const selectEverything =
+        selected.length !== checkboxes.length;
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectEverything;
+    });
+
+    updateSelectedWeekCount();
+}
+
+
+// ======================================
+// PRINT SELECTED WEEKS
+// ======================================
+
+function printSelectedWeeks() {
+
+    const selected = Array.from(
+        document.querySelectorAll(".week-checkbox:checked")
+    ).map(checkbox => checkbox.value);
+
+    if (selected.length === 0) {
+        alert("Please select at least one weekly edition.");
+        return;
+    }
+
+    startWeeklyPrint(selected);
+}
+
+
+// ======================================
+// PRINT ONE WEEK
+// ======================================
+
+function printWeek(key) {
+
+    startWeeklyPrint([key]);
+
+}
+
+
+// ======================================
+// COMMON PRINT FUNCTION
+// ======================================
+
+function startWeeklyPrint(keys) {
+
+    document.querySelectorAll(".week-section").forEach(section => {
+        section.classList.remove("print-target");
+    });
+
+    const validKeys = keys.filter(key => {
+        return document.getElementById("week-" + key);
+    });
+
+    if (validKeys.length === 0) {
+        alert("No weekly editions found.");
+        return;
+    }
+
+    validKeys.forEach(key => {
+
+        const section = document.getElementById("week-" + key);
+
+        section.classList.add("print-target");
+
+    });
+
+    document.body.classList.add("printing-week");
+
+    window.addEventListener("afterprint", function cleanup() {
+
+        document.body.classList.remove("printing-week");
+
+        document.querySelectorAll(".week-section").forEach(section => {
+            section.classList.remove("print-target");
+        });
+
+    }, { once: true });
+
+    window.print();
+}
+
+
 // ======================================
 // READ FULL ARTICLE
 // ======================================
 
 async function readArticle(id) {
+
     try {
+
         const articles = await getArticles();
 
         const article = articles.find(
@@ -221,16 +454,20 @@ async function readArticle(id) {
         if (!container) return;
 
         container.innerHTML = `
+
             <div class="full-article">
 
-                <button onclick="displayArticles()" class="back-button">
+                <button
+                    onclick="displayArticles()"
+                    class="back-button">
                     ← Back to Weekly Editions
                 </button>
 
                 ${article.image ? `
-                    <img src="${escapeHTML(article.image)}"
-                         class="full-article-image"
-                         alt="${escapeHTML(article.title)}">
+                    <img
+                        src="${escapeHTML(article.image)}"
+                        class="full-article-image"
+                        alt="${escapeHTML(article.title)}">
                 ` : ""}
 
                 <p class="news-category">
@@ -240,60 +477,52 @@ async function readArticle(id) {
                 <h1>${escapeHTML(article.title)}</h1>
 
                 <div class="article-meta">
-                    <strong>By ${escapeHTML(article.author)}</strong>
+
+                    <strong>
+                        By ${escapeHTML(article.author)}
+                    </strong>
+
                     <span>
-                        Published: ${escapeHTML(formatDateTime(getArticleDate(article)))}
+                        Published:
+                        ${escapeHTML(formatDateTime(getArticleDate(article)))}
                     </span>
+
                 </div>
 
                 <div class="article-body">
-                    ${escapeHTML(article.content).replace(/\n/g, "<br>")}
+                    ${escapeHTML(article.content || "").replace(/\n/g, "<br>")}
                 </div>
 
             </div>
+
         `;
 
         window.scrollTo(0, 0);
 
     } catch (error) {
+
         alert("Unable to open this article.");
+
     }
 }
 
-// ======================================
-// PRINT WEEKLY EDITION
-// ======================================
-
-function printWeek(key) {
-    const section = document.getElementById("week-" + key);
-
-    if (!section) return;
-
-    document.querySelectorAll(".week-section").forEach(item => {
-        item.classList.remove("print-target");
-    });
-
-    section.classList.add("print-target");
-    document.body.classList.add("printing-week");
-
-    window.print();
-
-    document.body.classList.remove("printing-week");
-    section.classList.remove("print-target");
-}
 
 // ======================================
 // COMPRESS NEWS IMAGE
 // ======================================
 
 function compressImage(file) {
+
     return new Promise((resolve, reject) => {
+
         const reader = new FileReader();
 
         reader.onload = function(event) {
+
             const image = new Image();
 
             image.onload = function() {
+
                 const canvas = document.createElement("canvas");
 
                 const maxWidth = 1200;
@@ -318,7 +547,10 @@ function compressImage(file) {
 
                 context.drawImage(image, 0, 0, width, height);
 
-                resolve(canvas.toDataURL("image/jpeg", 0.65));
+                resolve(
+                    canvas.toDataURL("image/jpeg", 0.65)
+                );
+
             };
 
             image.onerror = () => reject(
@@ -326,6 +558,7 @@ function compressImage(file) {
             );
 
             image.src = event.target.result;
+
         };
 
         reader.onerror = () => reject(
@@ -333,38 +566,52 @@ function compressImage(file) {
         );
 
         reader.readAsDataURL(file);
+
     });
 }
+
 
 // ======================================
 // PUBLISHER PAGE ARTICLES
 // ======================================
 
 async function displayPublisherArticles() {
-    const container = document.getElementById("published-articles");
+
+    const container = document.getElementById(
+        "published-articles"
+    );
 
     if (!container) return;
 
     try {
+
         const articles = await getArticles();
 
         if (articles.length === 0) {
+
             container.innerHTML = `
-                <p class="empty-news">No articles published yet.</p>
+                <p class="empty-news">
+                    No articles published yet.
+                </p>
             `;
+
             return;
         }
 
         container.innerHTML = articles.map(article => `
+
             <div class="published-item">
 
                 <div class="published-item-info">
+
                     <h3>${escapeHTML(article.title)}</h3>
+
                     <p>By ${escapeHTML(article.author)}</p>
 
                     <small>
                         ${escapeHTML(formatDateTime(getArticleDate(article)))}
                     </small>
+
                 </div>
 
                 <button
@@ -375,20 +622,30 @@ async function displayPublisherArticles() {
                 </button>
 
             </div>
+
         `).join("");
 
     } catch (error) {
+
         console.error(error);
-        container.innerHTML = "<p>Unable to load published articles.</p>";
+
+        container.innerHTML = `
+            <p>Unable to load published articles.</p>
+        `;
+
     }
 }
+
 
 // ======================================
 // DELETE ARTICLE
 // ======================================
 
 document.addEventListener("click", async function(event) {
-    const button = event.target.closest(".delete-article-button");
+
+    const button = event.target.closest(
+        ".delete-article-button"
+    );
 
     if (!button) return;
 
@@ -401,6 +658,7 @@ document.addEventListener("click", async function(event) {
     button.disabled = true;
 
     try {
+
         const response = await fetch(
             `/api/articles/${encodeURIComponent(articleId)}`,
             { method: "DELETE" }
@@ -411,15 +669,21 @@ document.addEventListener("click", async function(event) {
         }
 
         await displayArticles();
+
         await displayPublisherArticles();
 
         alert("Article deleted successfully!");
 
     } catch (error) {
+
         alert("Unable to delete article. Please try again.");
+
         button.disabled = false;
+
     }
+
 });
+
 
 // ======================================
 // PUBLISH ARTICLE
@@ -428,36 +692,53 @@ document.addEventListener("click", async function(event) {
 const publishForm = document.getElementById("publish-form");
 
 if (publishForm) {
+
     publishForm.addEventListener("submit", async function(event) {
+
         event.preventDefault();
 
         const author = document.getElementById("author").value.trim();
+
         const title = document.getElementById("title").value.trim();
+
         const imageFile = document.getElementById("image").files[0];
+
         const content = document.getElementById("content").value.trim();
 
         const message = document.getElementById("publish-message");
+
         const button = publishForm.querySelector(".submit-button");
 
         if (!author || !title || !content) {
-            message.textContent = "Please complete all required fields.";
+
+            message.textContent =
+                "Please complete all required fields.";
+
             return;
         }
 
         if (imageFile && !imageFile.type.startsWith("image/")) {
-            message.textContent = "Please select a valid image.";
+
+            message.textContent =
+                "Please select a valid image.";
+
             return;
         }
 
         if (imageFile && imageFile.size > 5 * 1024 * 1024) {
-            message.textContent = "Choose an image smaller than 5MB.";
+
+            message.textContent =
+                "Choose an image smaller than 5MB.";
+
             return;
         }
 
         button.disabled = true;
+
         button.textContent = "PUBLISHING...";
 
         try {
+
             let imageData = "";
 
             if (imageFile) {
@@ -472,38 +753,54 @@ if (publishForm) {
             };
 
             const response = await fetch("/api/articles", {
+
                 method: "POST",
+
                 headers: {
                     "Content-Type": "application/json"
                 },
+
                 body: JSON.stringify(newArticle)
+
             });
 
             if (!response.ok) {
                 throw new Error("Publishing failed");
             }
 
-            message.textContent = "Article published successfully!";
+            message.textContent =
+                "Article published successfully!";
 
             publishForm.reset();
 
             await displayArticles();
+
             await displayPublisherArticles();
 
         } catch (error) {
+
             console.error(error);
+
             message.textContent =
                 "Publishing failed. Please try again.";
+
         } finally {
+
             button.disabled = false;
+
             button.textContent = "PUBLISH ARTICLE";
+
         }
+
     });
+
 }
+
 
 // ======================================
 // LOAD ARTICLES WHEN PAGE OPENS
 // ======================================
 
 displayArticles();
+
 displayPublisherArticles();
