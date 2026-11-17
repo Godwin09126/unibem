@@ -632,3 +632,236 @@ footer p {
     color: #008b8b;
 }
 
+
+/* ==========================================
+   WEEKLY EDITION PRINT CENTRE
+========================================== */
+
+.print-centre {
+    background: white;
+    border: 1px solid #dce8e5;
+    border-radius: 12px;
+    padding: 30px;
+    margin-bottom: 50px;
+    box-shadow: 0 3px 15px rgba(0,0,0,0.04);
+}
+
+.print-centre h2 {
+    font-size: 27px;
+    margin-bottom: 10px;
+}
+
+.print-centre > p:not(.eyebrow) {
+    color: #71807c;
+    font-size: 14px;
+}
+
+.print-centre-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 25px 0 15px;
+}
+
+.select-weeks-button,
+.print-selected-button {
+    padding: 14px 20px;
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.select-weeks-button {
+    background: #eaf6f3;
+    color: #087568;
+}
+
+.print-selected-button {
+    background: #087568;
+    color: white;
+}
+
+.print-selected-button:hover {
+    background: #064e47;
+}
+
+.selected-week-count {
+    font-size: 13px;
+    font-weight: bold;
+    color: #087568;
+    margin-bottom: 15px;
+}
+
+.week-selection-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.week-selection-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: #f7f9f8;
+    border: 1px solid #e2eae7;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.week-selection-item input {
+    width: 18px;
+    height: 18px;
+    accent-color: #087568;
+}
+
+.week-selection-item span {
+    flex: 1;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.week-selection-item small {
+    color: #71807c;
+    font-size: 11px;
+}
+
+.print-full-content {
+    display: none;
+}
+
+
+/* ==========================================
+   PRINT SELECTED WEEKLY EDITIONS
+========================================== */
+
+@media print {
+
+    @page {
+        size: A4;
+        margin: 15mm;
+    }
+
+    body.printing-week * {
+        visibility: hidden !important;
+    }
+
+    body.printing-week .print-centre {
+        display: none !important;
+    }
+
+    body.printing-week #news-container > .week-section:not(.print-target) {
+        display: none !important;
+    }
+
+    body.printing-week #news-container > .week-section.print-target,
+    body.printing-week #news-container > .week-section.print-target * {
+        visibility: visible !important;
+    }
+
+    body.printing-week #news-container > .week-section.print-target {
+        display: block !important;
+        position: relative !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        break-before: page;
+        page-break-before: always;
+    }
+
+    body.printing-week #news-container > .week-section.print-target:first-of-type {
+        break-before: auto;
+        page-break-before: auto;
+    }
+
+    body.printing-week .print-week-button,
+    body.printing-week .read-more {
+        display: none !important;
+    }
+
+    body.printing-week .news-grid {
+        display: block !important;
+    }
+
+    body.printing-week .news-card {
+        display: block !important;
+        width: 100% !important;
+        margin-bottom: 25px;
+        box-shadow: none !important;
+        border: none !important;
+        border-bottom: 1px solid #ccc !important;
+        border-radius: 0 !important;
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+
+    body.printing-week .news-image {
+        width: 220px !important;
+        height: auto !important;
+        max-height: 150px;
+        object-fit: cover;
+    }
+
+    body.printing-week .news-content {
+        padding: 10px 0 !important;
+    }
+
+    body.printing-week .news-description {
+        display: none !important;
+    }
+
+    body.printing-week .print-full-content {
+        display: block !important;
+        font-size: 12px;
+        line-height: 1.8;
+        color: black !important;
+        margin-top: 15px;
+    }
+
+    body.printing-week .week-heading {
+        border-bottom: 2px solid black;
+    }
+
+    body.printing-week .week-heading h2,
+    body.printing-week .news-category,
+    body.printing-week .by-line {
+        color: black !important;
+    }
+
+    body.printing-week .news-meta,
+    body.printing-week .news-content p {
+        color: black !important;
+    }
+
+    body.printing-week .news-card:hover {
+        transform: none !important;
+    }
+
+}
+
+
+/* ==========================================
+   MOBILE PRINT CENTRE
+========================================== */
+
+@media (max-width: 600px) {
+
+    .print-centre {
+        padding: 20px;
+    }
+
+    .week-selection-list {
+        grid-template-columns: 1fr;
+    }
+
+    .print-centre-actions {
+        flex-direction: column;
+    }
+
+    .select-weeks-button,
+    .print-selected-button {
+        width: 100%;
+    }
+
+}
