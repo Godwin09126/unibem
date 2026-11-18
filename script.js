@@ -6,6 +6,7 @@
 
 // Get articles from backend
 // SUPABASE CONNECTION REMAINS THROUGH NODE.JS
+
 async function getArticles() {
     const response = await fetch("/api/articles");
 
@@ -16,7 +17,11 @@ async function getArticles() {
     return await response.json();
 }
 
-// Escape HTML
+
+// ======================================
+// ESCAPE HTML
+// ======================================
+
 function escapeHTML(value) {
     return String(value ?? "").replace(/[&<>"']/g, char => ({
         "&": "&amp;",
@@ -27,7 +32,11 @@ function escapeHTML(value) {
     })[char]);
 }
 
-// Get article date
+
+// ======================================
+// GET ARTICLE DATE
+// ======================================
+
 function getArticleDate(article) {
     const date = article.publishedAt
         ? new Date(article.publishedAt)
@@ -36,7 +45,11 @@ function getArticleDate(article) {
     return isNaN(date.getTime()) ? new Date() : date;
 }
 
-// Format date and time
+
+// ======================================
+// FORMAT DATE AND TIME
+// ======================================
+
 function formatDateTime(date) {
     return new Intl.DateTimeFormat("en-NG", {
         timeZone: "Africa/Lagos",
@@ -49,7 +62,11 @@ function formatDateTime(date) {
     }).format(date);
 }
 
-// Get Monday of the week
+
+// ======================================
+// GET MONDAY OF THE WEEK
+// ======================================
+
 function getWeekStart(date) {
     const monday = new Date(date);
     monday.setHours(0, 0, 0, 0);
@@ -60,7 +77,11 @@ function getWeekStart(date) {
     return monday;
 }
 
-// Format weekly edition
+
+// ======================================
+// FORMAT WEEKLY EDITION
+// ======================================
+
 function formatWeek(start) {
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
@@ -121,7 +142,9 @@ async function displayArticles() {
 
         const sortedWeeks = Object.keys(weeks).sort().reverse();
 
+
         // WEEKLY EDITION PRINT CENTRE
+
         const printCentre = `
             <section class="print-centre">
 
@@ -183,7 +206,9 @@ async function displayArticles() {
             </section>
         `;
 
+
         // CREATE WEEKLY NEWS SECTIONS
+
         const weeklySections = sortedWeeks.map(key => {
 
             const week = weeks[key];
@@ -209,6 +234,12 @@ async function displayArticles() {
 
                         <h3>${escapeHTML(article.title)}</h3>
 
+                        ${article.subtitle ? `
+                            <p class="news-subtitle">
+                                ${escapeHTML(article.subtitle)}
+                            </p>
+                        ` : ""}
+
                         <div class="news-meta">
 
                             <span class="by-line">
@@ -230,7 +261,15 @@ async function displayArticles() {
                         </div>
 
                         <div class="print-full-content">
+
+                            ${article.subtitle ? `
+                                <p class="print-article-subtitle">
+                                    ${escapeHTML(article.subtitle)}
+                                </p>
+                            ` : ""}
+
                             ${escapeHTML(article.content || "").replace(/\n/g, "<br>")}
+
                         </div>
 
                         <a
@@ -302,7 +341,6 @@ async function displayArticles() {
 // WEEKLY EDITION SELECTION
 // ======================================
 
-// Update selected edition count
 function updateSelectedWeekCount() {
 
     const checkboxes = document.querySelectorAll(
@@ -384,9 +422,7 @@ function printSelectedWeeks() {
 // ======================================
 
 function printWeek(key) {
-
     startWeeklyPrint([key]);
-
 }
 
 
@@ -476,6 +512,12 @@ async function readArticle(id) {
 
                 <h1>${escapeHTML(article.title)}</h1>
 
+                ${article.subtitle ? `
+                    <p class="article-subtitle">
+                        ${escapeHTML(article.subtitle)}
+                    </p>
+                ` : ""}
+
                 <div class="article-meta">
 
                     <strong>
@@ -501,6 +543,7 @@ async function readArticle(id) {
 
     } catch (error) {
 
+        console.error(error);
         alert("Unable to open this article.");
 
     }
@@ -606,6 +649,12 @@ async function displayPublisherArticles() {
 
                     <h3>${escapeHTML(article.title)}</h3>
 
+                    ${article.subtitle ? `
+                        <p class="published-item-subtitle">
+                            ${escapeHTML(article.subtitle)}
+                        </p>
+                    ` : ""}
+
                     <p>By ${escapeHTML(article.author)}</p>
 
                     <small>
@@ -676,6 +725,7 @@ document.addEventListener("click", async function(event) {
 
     } catch (error) {
 
+        console.error(error);
         alert("Unable to delete article. Please try again.");
 
         button.disabled = false;
@@ -701,6 +751,9 @@ if (publishForm) {
 
         const title = document.getElementById("title").value.trim();
 
+        const subtitleField = document.getElementById("subtitle");
+        const subtitle = subtitleField ? subtitleField.value.trim() : "";
+
         const imageFile = document.getElementById("image").files[0];
 
         const content = document.getElementById("content").value.trim();
@@ -709,7 +762,7 @@ if (publishForm) {
 
         const button = publishForm.querySelector(".submit-button");
 
-        if (!author || !title || !content) {
+        if (!author || !title || !subtitle || !content) {
 
             message.textContent =
                 "Please complete all required fields.";
@@ -748,6 +801,7 @@ if (publishForm) {
             const newArticle = {
                 author,
                 title,
+                subtitle,
                 image: imageData,
                 content
             };
@@ -765,7 +819,8 @@ if (publishForm) {
             });
 
             if (!response.ok) {
-                throw new Error("Publishing failed");
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || "Publishing failed");
             }
 
             message.textContent =
@@ -782,7 +837,7 @@ if (publishForm) {
             console.error(error);
 
             message.textContent =
-                "Publishing failed. Please try again.";
+                error.message || "Publishing failed. Please try again.";
 
         } finally {
 
