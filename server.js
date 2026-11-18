@@ -24,16 +24,27 @@ const supabase = createClient(
     }
 );
 
-app.use(express.json({ limit: "10mb" }));
+// Allow multiple image uploads
+app.use(express.json({ limit: "75mb" }));
 app.use(express.static(__dirname));
 
-// Convert database records to the format used by your website
+// Convert database records to website format
 function formatArticle(article) {
+    const images =
+        Array.isArray(article.image_urls) &&
+        article.image_urls.length > 0
+            ? article.image_urls
+            : article.image_url
+                ? [article.image_url]
+                : [];
+
     return {
         id: article.id,
         author: article.author,
         title: article.title,
-        image: article.image_url || "",
+        subtitle: article.subtitle || "",
+        image: images[0] || "",
+        images: images,
         content: article.content,
         publishedAt: article.created_at
     };
@@ -53,18 +64,26 @@ app.get("/api/articles", async (req, res) => {
 
     } catch (error) {
         console.error("Loading error:", error);
+
         res.status(500).json({
             error: "Could not load articles."
         });
     }
 });
 
-// PUBLISH ARTICLE AND UPLOAD IMAGE
+// PUBLISH ARTICLE WITH MULTIPLE IMAGES
 app.post("/api/articles", async (req, res) => {
-    let uploadedPath = null;
+    const uploadedPaths = [];
 
     try {
-        const { author, title, image, content } = req.body;
+        const { author, title, subtitle, content } = req.body;
+
+        // Support old single-image and new multiple-image formats
+        const images = Array.isArray(req.body.images)
+            ? req.body.images
+            : req.body.image
+                ? [req.body.image]
+                : [];
 
         if (!author || !title || !content) {
             return res.status(400).json({
@@ -72,26 +91,34 @@ app.post("/api/articles", async (req, res) => {
             });
         }
 
-        let imageUrl = "";
+        if (images.length > 10) {
+            return res.status(400).json({
+                error: "You can upload a maximum of 10 pictures."
+            });
+        }
 
-        if (image) {
+        const imageUrls = [];
+        const imagePaths = [];
+
+        // Upload each picture to Supabase Storage
+        for (const image of images) {
+            if (typeof image !== "string") {
+                throw new Error("Invalid image data.");
+            }
+
             const match = image.match(
-                /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/
+                /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/]+={0,2})$/
             );
 
             if (!match) {
-                return res.status(400).json({
-                    error: "Invalid image format."
-                });
+                throw new Error("Invalid image format.");
             }
 
             const mimeType = match[1];
             const imageBuffer = Buffer.from(match[2], "base64");
 
             if (imageBuffer.length > 5 * 1024 * 1024) {
-                return res.status(400).json({
-                    error: "Image must not exceed 5MB."
-                });
+                throw new Error("Each picture must not exceed 5MB.");
             }
 
             const extension = {
@@ -101,7 +128,8 @@ app.post("/api/articles", async (req, res) => {
                 "image/gif": "gif"
             }[mimeType];
 
-            uploadedPath = `${crypto.randomUUID()}.${extension}`;
+            const uploadedPath =
+                `${crypto.randomUUID()}.${extension}`;
 
             const { error: uploadError } = await supabase
                 .storage
@@ -114,22 +142,33 @@ app.post("/api/articles", async (req, res) => {
 
             if (uploadError) throw uploadError;
 
+            uploadedPaths.push(uploadedPath);
+
             const { data: publicData } = supabase
                 .storage
                 .from("news-images")
                 .getPublicUrl(uploadedPath);
 
-            imageUrl = publicData.publicUrl;
+            imageUrls.push(publicData.publicUrl);
+            imagePaths.push(uploadedPath);
         }
 
+        // Save article and all picture information
         const { data, error } = await supabase
             .from("articles")
             .insert({
                 author,
                 title,
+                subtitle: subtitle || "",
                 content,
-                image_url: imageUrl,
-                image_path: uploadedPath
+
+                // Keep old columns working
+                image_url: imageUrls[0] || "",
+                image_path: imagePaths[0] || null,
+
+                // New multiple-image columns
+                image_urls: imageUrls,
+                image_paths: imagePaths
             })
             .select()
             .single();
@@ -141,25 +180,30 @@ app.post("/api/articles", async (req, res) => {
     } catch (error) {
         console.error("Publishing error:", error);
 
-        // Remove uploaded image if article saving fails
-        if (uploadedPath) {
-            await supabase.storage
+        // Remove uploaded pictures if publishing fails
+        if (uploadedPaths.length > 0) {
+            const { error: cleanupError } = await supabase
+                .storage
                 .from("news-images")
-                .remove([uploadedPath]);
+                .remove(uploadedPaths);
+
+            if (cleanupError) {
+                console.error("Image cleanup error:", cleanupError);
+            }
         }
 
         res.status(500).json({
-            error: "Could not publish article."
+            error: error.message || "Could not publish article."
         });
     }
 });
 
-// DELETE ARTICLE AND ITS IMAGE
+// DELETE ARTICLE AND ALL ITS IMAGES
 app.delete("/api/articles/:id", async (req, res) => {
     try {
         const { data: article, error: findError } = await supabase
             .from("articles")
-            .select("id, image_path")
+            .select("*")
             .eq("id", req.params.id)
             .maybeSingle();
 
@@ -178,11 +222,21 @@ app.delete("/api/articles/:id", async (req, res) => {
 
         if (deleteError) throw deleteError;
 
-        if (article.image_path) {
+        // Collect all old and new picture paths
+        const imagePaths = new Set([
+            ...(Array.isArray(article.image_paths)
+                ? article.image_paths
+                : []),
+            ...(article.image_path
+                ? [article.image_path]
+                : [])
+        ]);
+
+        if (imagePaths.size > 0) {
             const { error: imageError } = await supabase
                 .storage
                 .from("news-images")
-                .remove([article.image_path]);
+                .remove([...imagePaths]);
 
             if (imageError) {
                 console.error("Image cleanup error:", imageError);
@@ -190,7 +244,7 @@ app.delete("/api/articles/:id", async (req, res) => {
         }
 
         res.json({
-            message: "Article and image deleted successfully."
+            message: "Article and its pictures deleted successfully."
         });
 
     } catch (error) {
@@ -206,4 +260,5 @@ app.delete("/api/articles/:id", async (req, res) => {
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Teal Spotlight running on port ${PORT}`);
     console.log("Supabase backend configured.");
+    console.log("Multiple image upload enabled.");
 });

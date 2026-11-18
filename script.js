@@ -2,10 +2,13 @@
 // ======================================
 // THE TEAL SPOTLIGHT
 // CONNECTED TO NODE.JS + SUPABASE
+// MULTIPLE IMAGE SUPPORT
 // ======================================
 
-// Get articles from backend
-// SUPABASE CONNECTION REMAINS THROUGH NODE.JS
+
+// ======================================
+// GET ARTICLES FROM BACKEND
+// ======================================
 
 async function getArticles() {
     const response = await fetch("/api/articles");
@@ -15,6 +18,19 @@ async function getArticles() {
     }
 
     return await response.json();
+}
+
+
+// ======================================
+// GET ALL ARTICLE IMAGES
+// ======================================
+
+function getArticleImages(article) {
+    if (Array.isArray(article.images) && article.images.length) {
+        return article.images;
+    }
+
+    return article.image ? [article.image] : [];
 }
 
 
@@ -173,8 +189,7 @@ async function displayArticles() {
 
                 </div>
 
-                <p class="selected-week-count"
-                   id="selected-week-count">
+                <p class="selected-week-count" id="selected-week-count">
                     0 editions selected
                 </p>
 
@@ -213,13 +228,17 @@ async function displayArticles() {
 
             const week = weeks[key];
 
-            const cards = week.articles.map(article => `
+            const cards = week.articles.map(article => {
+
+                const images = getArticleImages(article);
+
+                return `
 
                 <article class="news-card">
 
-                    ${article.image ? `
+                    ${images.length ? `
                         <img
-                            src="${escapeHTML(article.image)}"
+                            src="${escapeHTML(images[0])}"
                             alt="${escapeHTML(article.title)}"
                             class="news-image"
                             onerror="this.style.display='none'"
@@ -268,6 +287,17 @@ async function displayArticles() {
                                 </p>
                             ` : ""}
 
+                            ${images.length ? `
+                                <div class="print-article-gallery">
+                                    ${images.map((image, index) => `
+                                        <img
+                                            src="${escapeHTML(image)}"
+                                            alt="${escapeHTML(article.title)} - Picture ${index + 1}"
+                                        >
+                                    `).join("")}
+                                </div>
+                            ` : ""}
+
                             ${escapeHTML(article.content || "").replace(/\n/g, "<br>")}
 
                         </div>
@@ -283,7 +313,9 @@ async function displayArticles() {
 
                 </article>
 
-            `).join("");
+                `;
+
+            }).join("");
 
             return `
 
@@ -343,21 +375,11 @@ async function displayArticles() {
 
 function updateSelectedWeekCount() {
 
-    const checkboxes = document.querySelectorAll(
-        ".week-checkbox"
-    );
+    const checkboxes = document.querySelectorAll(".week-checkbox");
+    const selected = document.querySelectorAll(".week-checkbox:checked");
 
-    const selected = document.querySelectorAll(
-        ".week-checkbox:checked"
-    );
-
-    const count = document.getElementById(
-        "selected-week-count"
-    );
-
-    const selectButton = document.getElementById(
-        "select-all-weeks"
-    );
+    const count = document.getElementById("selected-week-count");
+    const selectButton = document.getElementById("select-all-weeks");
 
     if (count) {
         count.textContent =
@@ -379,16 +401,10 @@ function updateSelectedWeekCount() {
 
 function toggleAllWeeks() {
 
-    const checkboxes = document.querySelectorAll(
-        ".week-checkbox"
-    );
+    const checkboxes = document.querySelectorAll(".week-checkbox");
+    const selected = document.querySelectorAll(".week-checkbox:checked");
 
-    const selected = document.querySelectorAll(
-        ".week-checkbox:checked"
-    );
-
-    const selectEverything =
-        selected.length !== checkboxes.length;
+    const selectEverything = selected.length !== checkboxes.length;
 
     checkboxes.forEach(checkbox => {
         checkbox.checked = selectEverything;
@@ -446,11 +462,8 @@ function startWeeklyPrint(keys) {
     }
 
     validKeys.forEach(key => {
-
         const section = document.getElementById("week-" + key);
-
         section.classList.add("print-target");
-
     });
 
     document.body.classList.add("printing-week");
@@ -470,7 +483,7 @@ function startWeeklyPrint(keys) {
 
 
 // ======================================
-// READ FULL ARTICLE
+// READ FULL ARTICLE WITH ALL PICTURES
 // ======================================
 
 async function readArticle(id) {
@@ -489,6 +502,8 @@ async function readArticle(id) {
 
         if (!container) return;
 
+        const images = getArticleImages(article);
+
         container.innerHTML = `
 
             <div class="full-article">
@@ -498,13 +513,6 @@ async function readArticle(id) {
                     class="back-button">
                     ← Back to Weekly Editions
                 </button>
-
-                ${article.image ? `
-                    <img
-                        src="${escapeHTML(article.image)}"
-                        class="full-article-image"
-                        alt="${escapeHTML(article.title)}">
-                ` : ""}
 
                 <p class="news-category">
                     Entertainment • Film • Popular Culture
@@ -530,6 +538,21 @@ async function readArticle(id) {
                     </span>
 
                 </div>
+
+                ${images.length ? `
+                    <div class="full-article-gallery">
+
+                        ${images.map((image, index) => `
+                            <img
+                                src="${escapeHTML(image)}"
+                                class="full-article-image"
+                                alt="${escapeHTML(article.title)} - Picture ${index + 1}"
+                                loading="lazy"
+                            >
+                        `).join("")}
+
+                    </div>
+                ` : ""}
 
                 <div class="article-body">
                     ${escapeHTML(article.content || "").replace(/\n/g, "<br>")}
@@ -620,9 +643,7 @@ function compressImage(file) {
 
 async function displayPublisherArticles() {
 
-    const container = document.getElementById(
-        "published-articles"
-    );
+    const container = document.getElementById("published-articles");
 
     if (!container) return;
 
@@ -641,13 +662,21 @@ async function displayPublisherArticles() {
             return;
         }
 
-        container.innerHTML = articles.map(article => `
+        container.innerHTML = articles.map(article => {
+
+            const images = getArticleImages(article);
+
+            return `
 
             <div class="published-item">
 
                 <div class="published-item-info">
 
                     <h3>${escapeHTML(article.title)}</h3>
+
+                    <small>
+                        ${images.length} picture(s)
+                    </small>
 
                     ${article.subtitle ? `
                         <p class="published-item-subtitle">
@@ -672,7 +701,9 @@ async function displayPublisherArticles() {
 
             </div>
 
-        `).join("");
+            `;
+
+        }).join("");
 
     } catch (error) {
 
@@ -692,9 +723,7 @@ async function displayPublisherArticles() {
 
 document.addEventListener("click", async function(event) {
 
-    const button = event.target.closest(
-        ".delete-article-button"
-    );
+    const button = event.target.closest(".delete-article-button");
 
     if (!button) return;
 
@@ -718,7 +747,6 @@ document.addEventListener("click", async function(event) {
         }
 
         await displayArticles();
-
         await displayPublisherArticles();
 
         alert("Article deleted successfully!");
@@ -736,7 +764,124 @@ document.addEventListener("click", async function(event) {
 
 
 // ======================================
-// PUBLISH ARTICLE
+// MULTIPLE PICTURE SELECTION AND PREVIEW
+// ======================================
+
+// This array keeps pictures selected across multiple clicks.
+let selectedArticleImages = [];
+
+const imageInputForPreview = document.getElementById("image");
+
+if (imageInputForPreview) {
+
+    imageInputForPreview.multiple = true;
+    imageInputForPreview.accept =
+        "image/jpeg,image/png,image/webp,image/gif";
+
+    let imagePreview = document.getElementById("image-preview");
+
+    if (!imagePreview) {
+
+        imagePreview = document.createElement("div");
+        imagePreview.id = "image-preview";
+        imagePreview.className = "image-preview";
+
+        imageInputForPreview.insertAdjacentElement(
+            "afterend",
+            imagePreview
+        );
+    }
+
+    // Display all selected pictures
+    function displaySelectedImages() {
+
+        imagePreview.innerHTML = "";
+
+        selectedArticleImages.forEach((file, index) => {
+
+            const previewItem = document.createElement("div");
+            previewItem.className = "preview-item";
+
+            const previewImage = document.createElement("img");
+
+            const objectUrl = URL.createObjectURL(file);
+
+            previewImage.src = objectUrl;
+            previewImage.alt = file.name;
+
+            previewImage.onload = function() {
+                URL.revokeObjectURL(objectUrl);
+            };
+
+            const fileName = document.createElement("p");
+            fileName.textContent = file.name;
+
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.textContent = "Remove";
+
+            removeButton.addEventListener("click", function() {
+
+                selectedArticleImages.splice(index, 1);
+
+                displaySelectedImages();
+
+            });
+
+            previewItem.appendChild(previewImage);
+            previewItem.appendChild(fileName);
+            previewItem.appendChild(removeButton);
+
+            imagePreview.appendChild(previewItem);
+
+        });
+
+        const count = document.createElement("p");
+
+        count.textContent =
+            `${selectedArticleImages.length} of 10 pictures selected`;
+
+        imagePreview.appendChild(count);
+    }
+
+
+    // Add new pictures without removing previous selections
+    imageInputForPreview.addEventListener("change", function() {
+
+        const newFiles = Array.from(this.files || []);
+
+        for (const file of newFiles) {
+
+            if (!file.type.startsWith("image/")) {
+                alert(`${file.name} is not a valid picture.`);
+                continue;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                alert(`${file.name} is larger than 5MB.`);
+                continue;
+            }
+
+            if (selectedArticleImages.length >= 10) {
+                alert("You can select a maximum of 10 pictures.");
+                break;
+            }
+
+            selectedArticleImages.push(file);
+        }
+
+        // Clear input but keep the selected files in our array.
+        this.value = "";
+
+        displaySelectedImages();
+
+    });
+
+}
+
+
+// ======================================
+// PUBLISH ARTICLE WITH MULTIPLE PICTURES
 // ======================================
 
 const publishForm = document.getElementById("publish-form");
@@ -752,9 +897,10 @@ if (publishForm) {
         const title = document.getElementById("title").value.trim();
 
         const subtitleField = document.getElementById("subtitle");
-        const subtitle = subtitleField ? subtitleField.value.trim() : "";
 
-        const imageFile = document.getElementById("image").files[0];
+        const subtitle = subtitleField
+            ? subtitleField.value.trim()
+            : "";
 
         const content = document.getElementById("content").value.trim();
 
@@ -762,7 +908,7 @@ if (publishForm) {
 
         const button = publishForm.querySelector(".submit-button");
 
-        if (!author || !title || !subtitle || !content) {
+        if (!author || !title || !content) {
 
             message.textContent =
                 "Please complete all required fields.";
@@ -770,41 +916,53 @@ if (publishForm) {
             return;
         }
 
-        if (imageFile && !imageFile.type.startsWith("image/")) {
+        if (selectedArticleImages.length > 10) {
 
             message.textContent =
-                "Please select a valid image.";
+                "You can select a maximum of 10 pictures.";
 
             return;
         }
 
-        if (imageFile && imageFile.size > 5 * 1024 * 1024) {
+        for (const file of selectedArticleImages) {
 
-            message.textContent =
-                "Choose an image smaller than 5MB.";
+            if (file.size > 5 * 1024 * 1024) {
 
-            return;
+                message.textContent =
+                    `${file.name} is larger than 5MB.`;
+
+                return;
+            }
         }
 
         button.disabled = true;
-
-        button.textContent = "PUBLISHING...";
+        button.textContent = "PROCESSING PICTURES...";
 
         try {
 
-            let imageData = "";
+            // Compress every selected picture
+            const imageData = [];
 
-            if (imageFile) {
-                imageData = await compressImage(imageFile);
+            for (let i = 0; i < selectedArticleImages.length; i++) {
+
+                message.textContent =
+                    `Processing picture ${i + 1} of ${selectedArticleImages.length}...`;
+
+                const compressedImage =
+                    await compressImage(selectedArticleImages[i]);
+
+                imageData.push(compressedImage);
             }
 
             const newArticle = {
                 author,
                 title,
                 subtitle,
-                image: imageData,
+                images: imageData,
                 content
             };
+
+            button.textContent = "PUBLISHING...";
 
             const response = await fetch("/api/articles", {
 
@@ -819,17 +977,29 @@ if (publishForm) {
             });
 
             if (!response.ok) {
+
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || "Publishing failed");
+
+                throw new Error(
+                    errorData.error || "Publishing failed"
+                );
             }
 
             message.textContent =
-                "Article published successfully!";
+                `Article published successfully with ${imageData.length} picture(s)!`;
 
             publishForm.reset();
 
-            await displayArticles();
+            // Clear selected pictures after successful publishing
+            selectedArticleImages = [];
 
+            const previewArea = document.getElementById("image-preview");
+
+            if (previewArea) {
+                previewArea.innerHTML = "";
+            }
+
+            await displayArticles();
             await displayPublisherArticles();
 
         } catch (error) {
@@ -842,7 +1012,6 @@ if (publishForm) {
         } finally {
 
             button.disabled = false;
-
             button.textContent = "PUBLISH ARTICLE";
 
         }
@@ -857,5 +1026,4 @@ if (publishForm) {
 // ======================================
 
 displayArticles();
-
 displayPublisherArticles();
